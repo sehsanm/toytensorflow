@@ -47,6 +47,8 @@ class HiddenLayer(Layer):
             return BaseMath.tanh(output)
         if self.activation == 'relu':
             return BaseMath.relu(output)
+        if self.activation == 'linear':
+            return output
 
     def backward_pass(self, loss_gradient, input_matrices):
         """Returns the gradient w.r.t layer parameters  (dx , dw) """
@@ -54,6 +56,8 @@ class HiddenLayer(Layer):
             dz = BaseMath.tanh_derivative(input_matrices[0] @ self.weights) * loss_gradient
         if self.activation == 'relu':
             dz = np.where(input_matrices[0] @ self.weights > 0, 1, 0) * loss_gradient
+        if self.activation == 'linear':
+            dz = loss_gradient
         return dz @ self.weights.transpose(), input_matrices[0].transpose() @ dz
 
     def apply_backprop(self, gradient, learning_rate=1):

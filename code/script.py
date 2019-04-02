@@ -35,6 +35,7 @@ def calculate_emperical_gradient_simple():
     graph.run_backward(g_output)
     print('Graph Output ',  g_output["sum"].output, ' Gradient:', g_output['h'].gradients[1][0,0])
 
+
 def calculate_emperical_gradient():
     np.random.seed(0)
     input_dimension = 20
@@ -71,6 +72,7 @@ def calculate_emperical_gradient():
 
     graph.train({'input':batch, 'labels':labels} , 0.000001 , 10 , 20)
 
+
 def predict_quadratic():
     np.random.seed(0)
     input_dimension = 20
@@ -78,7 +80,7 @@ def predict_quadratic():
     batch_size = 4000
 
     h1 = HiddenLayer(input_dimension + 1, 10, 'relu')
-    h2 = HiddenLayer(11, 1, 'relu')
+    h2 = HiddenLayer(11, 1, 'linear')
 
     data = np.random.rand(batch_size, input_dimension)
     out = np.sum(data * data + 5 * data, 1).reshape(batch_size, 1)
@@ -95,14 +97,20 @@ def predict_quadratic():
     graph.add_node('rms' , RMSLayer(), 'target',  'h2')
     graph.add_node('out' , BatchSumLayer(),  'rms')
     graph.compile()
-    graph.train({'input':data, 'target':out} , 0.00001, 400 , 1000)
-    graph.train({'input':data, 'target':out} , 0.000001, 400 , 1000)
-    graph.train({'input':data, 'target':out} , 0.0000001, 400 , 10000)
-    print('All zero error is:', np.sum(out * out))
+    perf = []
+    perf += graph.train({'input':data, 'target':out} , 0.00001, 400 , 10)
+    perf+= graph.train({'input':data, 'target':out} ,  0.000001, 400 , 10)
+
+    net_data = graph.run_forward({'input':data, 'target':out})
+    print(net_data['out'].output)
+
+    plot_performance(perf)
+
 def unpickle(file):
     with open(file, 'rb') as fo:
         dict = pickle.load(fo, encoding='bytes')
     return dict
+
 
 def load_cifar10(n = 0 ):
     dict  = unpickle("./data/data_batch_1")
@@ -120,36 +128,47 @@ def load_cifar10(n = 0 ):
         n = data.shape[0]
     return data[0:n , :], labels[0:n , :]
 
+
 def test_cifar10():
-    data, labels = load_cifar10(1800)
+    #np.random.seed(0)
+    data, labels = load_cifar10(500)
     graph = GraphModel()
     graph.add_input("input")
     graph.add_input("labels")
     graph.add_node('input_bias' , BiasLayer(), 'input')
-    graph.add_node("hidden_1", HiddenLayer(1024 + 1 , 10, 'relu'), "input_bias")
-    #graph.add_node("hidden_1_bias" , BiasLayer() , 'hidden_1')
-    #graph.add_node("hidden_2", HiddenLayer(128 + 1 , 10, 'relu'), "hidden_1_bias")
-    #graph.add_node("hidden_3", HiddenLayer(50 , 10, 'relu'), "hidden_2")
-    graph.add_node("softmax" , SoftmaxLayer() , "hidden_1")
+    graph.add_node("hidden_1", HiddenLayer(1024 + 1 , 128, 'relu'), "input_bias")
+    graph.add_node("hidden_1_bias" , BiasLayer() , 'hidden_1')
+    graph.add_node("hidden_2", HiddenLayer(128 + 1 , 10, 'linear'), "hidden_1_bias")
+    graph.add_node("softmax" , SoftmaxLayer() , "hidden_2")
     graph.add_node("cross_ent" , CrossEntropyLayer() , "labels" , "softmax" )
-    #graph.add_node("softmax" , RMSLayer() , "labels",  "hidden_3")
     graph.add_node("output" , BatchSumLayer(), "cross_ent")
     graph.compile()
     perf = []
-    perf +=  graph.train({'input':data, 'labels':labels}, 0.00001,  64 , 40)
-    perf += graph.train({'input':data, 'labels':labels}, 0.0001,  128 , 300)
-    perf += graph.train({'input':data, 'labels':labels}, 0.000001,  128 , 100)
+    perf +=  graph.train({'input':data, 'labels':labels}, 0.000001,  128 , 100)
+    perf += graph.train({'input':data, 'labels':labels}, 0.000005,  128 , 300)
+    perf += graph.train({'input':data, 'labels':labels}, 0.00008,  128 , 300)
+    perf += graph.train({'input':data, 'labels':labels}, 0.00005,  128 , 300)
 
+
+
+    net_data = graph.run_forward({'input':data, 'labels':labels})
+    print_precision(labels, net_data , 'softmax')
+    data, labels = load_cifar10()
+    net_data = graph.run_forward({'input':data, 'labels':labels})
+    print_precision(labels, net_data , 'softmax')
+
+    plot_performance(perf)
+
+
+def plot_performance(perf):
     plt.plot(perf)
     plt.ylabel('Cross Entropy')
     plt.xlabel('Batch Run')
     plt.show()
 
-    net_data = graph.run_forward({'input':data, 'labels':labels})
-
-    print_precision(labels, net_data , 'softmax')
 
 def test_cifar10_rms():
+    np.random.seed(0)
     data, labels = load_cifar10(100)
     graph = GraphModel()
     graph.add_input("input")
@@ -168,6 +187,7 @@ def test_cifar10_rms():
     net_data = graph.run_forward({'input':data, 'labels':labels})
 
     print_precision(labels, net_data, 'hidden_2')
+
 
 def print_precision(labels, net_data , out_layer ):
     predict = np.argmax(net_data[out_layer].output, 1)
