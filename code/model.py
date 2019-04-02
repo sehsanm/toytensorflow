@@ -61,16 +61,19 @@ class GraphModel:
         for epoch in range(1, epoch_count + 1):
             slices = build_batch(data_count, batch_size)
             batch = 0
+            print('Epoch ', epoch , end='')
             for sl in slices:
                 batch += 1
+                print('=' , end='')
                 net_data = self.run_forward(slice_inputs(sl, network_inputs))
-                print('Epoch:', epoch, ' Batch:', batch, ' Out:', net_data[self.node_order[-1].identifier].output)
                 perf.append(net_data[self.node_order[-1].identifier].output)
                 self.run_backward(net_data)
                 for nid in self.nodes:
                     if nid in self.inputs:
                         continue
                     self.nodes[nid].layer.apply_backprop(net_data[nid].gradients[-1], learning_rate)
+            overall = self.run_forward(network_inputs)
+            print('Epoch Performance:', overall[self.node_order[-1].identifier].output)
         return perf
     def add_node(self, layer_identifier, layer, *parent_layers):
         if layer_identifier in self.nodes:

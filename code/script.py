@@ -131,7 +131,7 @@ def load_cifar10(n = 0 ):
 
 def test_cifar10():
     #np.random.seed(0)
-    data, labels = load_cifar10(500)
+    data, labels = load_cifar10()
     graph = GraphModel()
     graph.add_input("input")
     graph.add_input("labels")
