@@ -1,8 +1,9 @@
 from layers import *
 
+
 class LayerData:
 
-    def __init__(self, inputs, output, loss_gradient , gradients):
+    def __init__(self, inputs, output, loss_gradient, gradients):
         self.inputs = inputs
         self.output = output
         self.loss_gradient = loss_gradient
@@ -17,6 +18,31 @@ class NetworkNode:
         self.identifier = layer_identifier
 
 
+def slice_inputs(sub_indices, inputs):
+    ret = {}
+    for k, v in inputs.items():
+        ret[k] = v[sub_indices, :]
+    return ret
+
+
+def build_batch(n, batch_size):
+    perm = np.random.permutation(n)
+    ret = []
+    ind = 0
+
+    while ind < n:
+        next = ind + batch_size
+        if next > n:
+            next = n
+        ret.append(perm[ind:next])
+        ind = next
+
+    return ret
+
+
+def print_gradiant_info(loss_gradient):
+    print('Max:', np.max(loss_gradient) , ' Min:' , np.min(loss_gradient), ' Mean:' , np.mean(loss_gradient))
+
 
 class GraphModel:
 
@@ -24,6 +50,28 @@ class GraphModel:
         self.nodes = {}
         self.inputs = set()
 
+    def train(self, network_inputs, learning_rate, batch_size=200, epoch_count=20):
+        data_count = -1
+        perf = []
+        for k, v in network_inputs.items():
+            if data_count == -1:
+                data_count = v.shape[0]
+            if data_count != v.shape[0]:
+                raise Exception("All input first dimension must agree")
+        for epoch in range(1, epoch_count + 1):
+            slices = build_batch(data_count, batch_size)
+            batch = 0
+            for sl in slices:
+                batch += 1
+                net_data = self.run_forward(slice_inputs(sl, network_inputs))
+                print('Epoch:', epoch, ' Batch:', batch, ' Out:', net_data[self.node_order[-1].identifier].output)
+                perf.append(net_data[self.node_order[-1].identifier].output)
+                self.run_backward(net_data)
+                for nid in self.nodes:
+                    if nid in self.inputs:
+                        continue
+                    self.nodes[nid].layer.apply_backprop(net_data[nid].gradients[-1], learning_rate)
+        return perf
     def add_node(self, layer_identifier, layer, *parent_layers):
         if layer_identifier in self.nodes:
             raise Exception("Layer already created:", layer_identifier)
@@ -35,7 +83,7 @@ class GraphModel:
         self.nodes[layer_identifier] = NetworkNode(layer_identifier, layer, parents)
 
     def add_input(self, input_name):
-        self.nodes[input_name] = NetworkNode(input_name, None , None)
+        self.nodes[input_name] = NetworkNode(input_name, None, None)
         self.inputs.add(input_name)
 
     def compile(self):
@@ -62,17 +110,15 @@ class GraphModel:
                         processed_nodes.add(id)
                         self.node_order.append(node)
 
-
-
-    def run_forward(self, **input_values):
+    def run_forward(self, input_values):
         if len(self.inputs.symmetric_difference(input_values.keys())) != 0:
-            raise Exception("Please provide right inputs for this network:Missing or additional inputs detected" ,
+            raise Exception("Please provide right inputs for this network:Missing or additional inputs detected",
                             self.inputs.symmetric_difference(input_values.keys()))
         layer_data = {}
-        for  k, v in input_values.items():
-            layer_data[k] = LayerData([v], v , None, None)
+        for k, v in input_values.items():
+            layer_data[k] = LayerData([v], v, None, None)
         for n in self.node_order:
-            if  n.identifier in  layer_data:
+            if n.identifier in layer_data:
                 continue
 
             inputs = []
@@ -81,8 +127,7 @@ class GraphModel:
             layer_data[n.identifier] = LayerData(inputs, n.layer.forward_pass(inputs), None, None)
         return layer_data
 
-
-    def run_backward(self , layers_data):
+    def run_backward(self, layers_data):
 
         processed = []
         for n in reversed(self.node_order):
@@ -99,10 +144,11 @@ class GraphModel:
                             loss_gradient += layers_data[p.identifier].gradients[ind]
                         ind += 1
             layers_data[n.identifier].loss_gradient = loss_gradient
+            #print('Layer:', n.identifier)
+            #print_gradiant_info(loss_gradient)
             layers_data[n.identifier].gradients = n.layer.backward_pass(loss_gradient, layers_data[n.identifier].inputs)
             processed.append(n)
-
-
+        return layers_data
 
 
 
