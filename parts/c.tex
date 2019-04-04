@@ -93,5 +93,15 @@ Initially all configurations tested we were not able to go down the random cross
     \item I was trying to reduce the  learning rate once we were stuck in the plateau, but it didn't work 
     \item Then by printing the gradients I realized that initially they are very large but as we go forward they become very small. My learning rates where in order of $10^{-6}$  it become obvious that I have to increase the learning rate. 
     \item So initially we start with small learning rate, once the network reaches the random error state, we increase the learning rate.  With this trick the loss function drops into values  around 0.9 which is one third of the initial random value. But unfortunately gets stuck there. 
-    \item  I made a change and changed the second layer to be simply a linear, this was like a miracle. It allowed the network to be traind normally> I cannot beleive such a small change caused such a big improvement in the performance of the network.
+    \item  I made a change and changed the second layer to be simply a linear, this was like a miracle. It allowed the network to be trained normally I cannot believe such a small change caused such a big improvement in the performance of the network. 
+    \item It is obvious that simple gradient decent is not enough, definitely a proper optimizer must be written to make the training successful 
+    \item The new network is able to successfully overfit the small data. Then I started to increase the training set to see up until where it is able to perform overfitting. Surprisingly it was able to over fit up until a full batch (10000 samples). In the same time while overfitting the network was not able to generalize on the test dataset. 
+    \item  The performance of the network on the first batch training is 9985 correct over 10000 which is clearly showing that the network is able to overfit even one batch. In the same time the network cannot gain performance on test data and best I could get from it is around 18 percent. 
+    
 \end{itemize}
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.7]{images/full_cifar_train.png}
+    \caption{Loss function decay of cifar network}
+\end{figure}
