@@ -1,4 +1,6 @@
+import datetime
 import os
+import shutil
 
 from model import *
 from layers import *
@@ -148,6 +150,9 @@ def test_cifar10():
         with open(temp_file, 'rb') as f:
             print('Loading from the file:' , temp_file)
             graph = pickle.load(f)
+            backup_file = temp_file + '.' + str(datetime.datetime.now()).replace(":" , "_").replace('-' , '_').replace('.' , '_')
+            print('Make a copy:' , backup_file)
+            shutil.copy(temp_file , backup_file)
     else:
         graph = GraphModel()
         graph.add_input("input")
