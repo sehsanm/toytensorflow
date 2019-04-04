@@ -1,5 +1,5 @@
 from layers import *
-
+import pickle
 
 class LayerData:
 
@@ -50,6 +50,9 @@ class GraphModel:
         self.nodes = {}
         self.inputs = set()
 
+    def save_to_file(self, filename):
+        pickle.dump(self , open(filename, 'wb'))
+
     def train(self, network_inputs, learning_rate, batch_size=200, epoch_count=20):
         data_count = -1
         perf = []
@@ -62,9 +65,14 @@ class GraphModel:
             slices = build_batch(data_count, batch_size)
             batch = 0
             print('Epoch ', epoch , end='')
+            x = int(len(slices) / 20)
+            if x == 0:
+                x = 1
+
             for sl in slices:
                 batch += 1
-                print('=' , end='')
+                if (batch % x == 0):
+                    print('=' , end='')
                 net_data = self.run_forward(slice_inputs(sl, network_inputs))
                 perf.append(net_data[self.node_order[-1].identifier].output)
                 self.run_backward(net_data)
@@ -72,8 +80,7 @@ class GraphModel:
                     if nid in self.inputs:
                         continue
                     self.nodes[nid].layer.apply_backprop(net_data[nid].gradients[-1], learning_rate)
-            overall = self.run_forward(network_inputs)
-            print('Epoch Performance:', overall[self.node_order[-1].identifier].output)
+            print('Epoch Performance:', np.mean(perf[-len(slices):]))
         return perf
     def add_node(self, layer_identifier, layer, *parent_layers):
         if layer_identifier in self.nodes:

@@ -1,3 +1,5 @@
+import os
+
 from model import *
 from layers import *
 import pickle
@@ -112,13 +114,19 @@ def unpickle(file):
     return dict
 
 
-def load_cifar10(n = 0 ):
-    dict  = unpickle("./data/data_batch_1")
+def load_cifar10(file_names , n = 0  ):
+    batch_data = []
+    batch_label = []
+    for f in file_names:
+        dict  = unpickle(f)
+        batch_data.append(dict[b'data'])
+        batch_label.append(dict[b'labels'])
 
-    data = dict[b'data']
-    labels = np.zeros((dict[b'data'].shape[0], 10))
+    data = np.concatenate(tuple(batch_data) , 0)
+    label_ind = np.concatenate(tuple(batch_label) , 0)
+    labels = np.zeros((label_ind.shape[0] , 10))
     ind = 0
-    for l in dict[b'labels']:
+    for l in label_ind:
         labels[ind , l] = 1
         ind += 1
     colors = np.split(data, [1024, 2048 ], 1)
@@ -126,34 +134,56 @@ def load_cifar10(n = 0 ):
     data -=  np.mean(data, 0)
     if n <= 0:
         n = data.shape[0]
-    return data[0:n , :], labels[0:n , :]
+        return  data, labels
+    else:
+        return data[0:n , :], labels[0:n , :]
 
 
 def test_cifar10():
     #np.random.seed(0)
-    data, labels = load_cifar10()
-    graph = GraphModel()
-    graph.add_input("input")
-    graph.add_input("labels")
-    graph.add_node('input_bias' , BiasLayer(), 'input')
-    graph.add_node("hidden_1", HiddenLayer(1024 + 1 , 128, 'relu'), "input_bias")
-    graph.add_node("hidden_1_bias" , BiasLayer() , 'hidden_1')
-    graph.add_node("hidden_2", HiddenLayer(128 + 1 , 10, 'linear'), "hidden_1_bias")
-    graph.add_node("softmax" , SoftmaxLayer() , "hidden_2")
-    graph.add_node("cross_ent" , CrossEntropyLayer() , "labels" , "softmax" )
-    graph.add_node("output" , BatchSumLayer(), "cross_ent")
-    graph.compile()
+    data, labels = load_cifar10(['./data/data_batch_1','./data/data_batch_2','./data/data_batch_3','./data/data_batch_4',
+                                 './data/data_batch_5'])
+    temp_file = './data/cfar_temp_network.dat'
+    if os.path.exists(temp_file):
+        with open(temp_file, 'rb') as f:
+            print('Loading from the file:' , temp_file)
+            graph = pickle.load(f)
+    else:
+        graph = GraphModel()
+        graph.add_input("input")
+        graph.add_input("labels")
+        graph.add_node('input_bias' , BiasLayer(), 'input')
+        graph.add_node("hidden_1", HiddenLayer(1024 + 1 , 128, 'relu'), "input_bias")
+        graph.add_node("hidden_1_bias" , BiasLayer() , 'hidden_1')
+        graph.add_node("hidden_2", HiddenLayer(128 + 1 , 64, 'relu'), "hidden_1_bias")
+        graph.add_node("hidden_2_bias" , BiasLayer() , 'hidden_2')
+        graph.add_node("hidden_3", HiddenLayer(64 + 1 , 10, 'linear'), "hidden_2_bias")
+        graph.add_node("softmax" , SoftmaxLayer() , "hidden_3")
+        graph.add_node("cross_ent" , CrossEntropyLayer() , "labels" , "softmax" )
+        graph.add_node("output" , BatchSumLayer(), "cross_ent")
+        graph.compile()
+
     perf = []
-    perf +=  graph.train({'input':data, 'labels':labels}, 0.000001,  128 , 100)
-    perf += graph.train({'input':data, 'labels':labels}, 0.000005,  128 , 300)
-    perf += graph.train({'input':data, 'labels':labels}, 0.00008,  128 , 300)
-    perf += graph.train({'input':data, 'labels':labels}, 0.00005,  128 , 300)
+    test_data, test_labels = load_cifar10(['./data/test_batch'], 5000)
+    for i  in range(0 , 200):
+        perf +=  graph.train({'input':data, 'labels':labels}, 0.001,  64 , 1)
+
+        net_data = graph.run_forward({'input':test_data, 'labels':test_labels})
+        print_precision(test_labels, net_data , 'softmax')
+    graph.save_to_file(temp_file)
+
+    # perf += graph.train({'input':data, 'labels':labels}, 0.000005,  128 , 300)
+    # graph.save_to_file(temp_file)
+    # perf += graph.train({'input':data, 'labels':labels}, 0.00008,  128 , 300)
+    # graph.save_to_file(temp_file)
+    # perf += graph.train({'input':data, 'labels':labels}, 0.00005,  128 , 300)
+    # graph.save_to_file(temp_file)
 
 
 
-    net_data = graph.run_forward({'input':data, 'labels':labels})
-    print_precision(labels, net_data , 'softmax')
-    data, labels = load_cifar10()
+    #net_data = graph.run_forward({'input':data, 'labels':labels})
+    #print_precision(labels, net_data , 'softmax')
+    data, labels = load_cifar10(['./data/test_batch'])
     net_data = graph.run_forward({'input':data, 'labels':labels})
     print_precision(labels, net_data , 'softmax')
 
@@ -192,7 +222,7 @@ def test_cifar10_rms():
 def print_precision(labels, net_data , out_layer ):
     predict = np.argmax(net_data[out_layer].output, 1)
     correct = np.sum(np.where(predict == np.argmax(labels, 1), 1, 0))
-    print('Correct: ', correct)
+    print('Correct: ', correct, '/' , labels.shape[0])
 
 
 if __name__ == "__main__":
